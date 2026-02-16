@@ -6,6 +6,8 @@
  * - RPC match_vector_embeddings exists (run supabase/migrations/...)
  * - OPENAI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  *
+ * This script explicitly activates vectors for this run only.
+ *
  * Usage: npm run check:manual
  */
 
@@ -13,6 +15,8 @@ if (!process.env.OPENAI_API_KEY || !process.env.SUPABASE_URL || !process.env.SUP
   console.error("Missing: OPENAI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY");
   process.exit(1);
 }
+
+process.env.VECTORS_ACTIVE = "true";
 
 const { embedPresentation } = await import("../src/presentation/presentationEmbeddingAdapter.js");
 const { embedTranscript } = await import("../src/conversations/transcriptEmbeddingAdapter.js");

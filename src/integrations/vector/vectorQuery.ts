@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { requireVectorsActive } from "./activationGate.js";
 
 export type SimilarContextRow = {
   tenant_id: string;
@@ -25,6 +26,8 @@ export async function findSimilarContext(
   embedding: number[],
   limit = 5
 ): Promise<SimilarContextRow[]> {
+  requireVectorsActive();
+
   if (!tenant_id) throw new Error("findSimilarContext: tenant_id is required");
   if (embedding === undefined || embedding === null) {
     throw new Error("findSimilarContext: embedding is required");

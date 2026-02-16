@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { requireVectorsActive } from "./activationGate.js";
 import { embedText, EMBEDDING_MODEL_NAME } from "./embeddingClient.js";
 
 export type EmbedContextParams = {
@@ -20,6 +21,8 @@ function createSupabaseClient(): SupabaseClient {
 }
 
 export async function embedContext(params: EmbedContextParams): Promise<void> {
+  requireVectorsActive();
+
   const { tenant_id, actor_type, actor_ref_id, source_type, source_ids, text } = params;
 
   if (!tenant_id) throw new Error("embedContext: tenant_id is required");

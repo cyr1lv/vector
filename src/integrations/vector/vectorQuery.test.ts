@@ -8,6 +8,7 @@ vi.mock("@supabase/supabase-js", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  process.env.VECTORS_ACTIVE = "true";
   process.env.SUPABASE_URL = "https://test.supabase.co";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
 });
