@@ -5,7 +5,8 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "check:manual": "npx tsx scripts/manualCheck.ts"
+    "check:manual": "npx tsx scripts/manualCheck.ts",
+    "embed:ontology": "tsx scripts/embedOntology.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
