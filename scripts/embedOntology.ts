@@ -9,14 +9,16 @@ const supabase = createClient(
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-async function hasColumn(table: "tech_ontology" | "task_ontology", column: string) {
+type OntologyTable = "tech_ontology" | "task_ontology" | "certification_ontology";
+
+async function hasColumn(table: OntologyTable, column: string) {
   const { error } = await supabase.from(table).select(column).limit(1);
   if (!error) return true;
   if (error.code === "42703") return false;
   throw error;
 }
 
-async function getIdColumn(table: "tech_ontology" | "task_ontology") {
+async function getIdColumn(table: OntologyTable) {
   const candidates = ["id", "task_id", "uuid", "canonical_name"];
   for (const candidate of candidates) {
     if (await hasColumn(table, candidate)) return candidate;
@@ -24,15 +26,19 @@ async function getIdColumn(table: "tech_ontology" | "task_ontology") {
   throw new Error(`No supported id column found for ${table}`);
 }
 
-async function embedTable(table: "tech_ontology" | "task_ontology") {
+async function embedTable(table: OntologyTable) {
   const idColumn = await getIdColumn(table);
   const hasAliases = await hasColumn(table, "aliases");
   const hasDomainBlock = await hasColumn(table, "domain_block");
   const hasSubtechOf = await hasColumn(table, "subtech_of");
+  const hasVendor = await hasColumn(table, "vendor");
+  const hasLevel = await hasColumn(table, "level");
   const selectColumns =
     table === "tech_ontology"
       ? `${idColumn}, canonical_name, aliases, domain_block, subtech_of`
-      : `${idColumn}, canonical_name`;
+      : table === "certification_ontology"
+        ? `${idColumn}, canonical_code, canonical_name, vendor, domain_block, level, aliases`
+        : `${idColumn}, canonical_name`;
   const { data, error } = await supabase.from(table).select(selectColumns).is("embedding", null);
 
   if (error) throw error;
@@ -40,15 +46,19 @@ async function embedTable(table: "tech_ontology" | "task_ontology") {
 
   for (const row of data) {
     const typedRow = row as Record<string, unknown> & {
+      canonical_code?: string | null;
       canonical_name: string;
+      vendor?: string | null;
+      level?: string | null;
       aliases?: string[] | null;
       domain_block?: string | null;
       subtech_of?: string | null;
     };
     const aliases = hasAliases ? ((typedRow.aliases as string[] | null) ?? []) : [];
-    const domainBlock = hasDomainBlock ? ((typedRow.domain_block as string | null) ?? "none") : "none";
-    const subtechOf = hasSubtechOf ? ((typedRow.subtech_of as string | null) ?? "none") : "none";
-    const text = `${typedRow.canonical_name}. Aliases: ${aliases.join(", ")}. Domain: ${domainBlock}. Parent: ${subtechOf}`;
+    const text =
+      table === "certification_ontology"
+        ? `${typedRow.canonical_code ?? typedRow.canonical_name}. ${typedRow.canonical_name}. Vendor: ${hasVendor ? ((typedRow.vendor as string | null) ?? "none") : "none"}. Domain: ${hasDomainBlock ? ((typedRow.domain_block as string | null) ?? "none") : "none"}. Level: ${hasLevel ? ((typedRow.level as string | null) ?? "none") : "none"}. Aliases: ${aliases.join(", ")}`
+        : `${typedRow.canonical_name}. Aliases: ${aliases.join(", ")}. Domain: ${hasDomainBlock ? ((typedRow.domain_block as string | null) ?? "none") : "none"}. Parent: ${hasSubtechOf ? ((typedRow.subtech_of as string | null) ?? "none") : "none"}`;
 
     const embedding = await openai.embeddings.create({
       model: "text-embedding-3-small",
@@ -65,6 +75,7 @@ async function embedTable(table: "tech_ontology" | "task_ontology") {
 async function run() {
   await embedTable("tech_ontology");
   await embedTable("task_ontology");
+  await embedTable("certification_ontology");
   console.log("Ontology embedding complete");
 }
 
