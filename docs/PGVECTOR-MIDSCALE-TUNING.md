@@ -1,6 +1,78 @@
 # pgvector mid-scale tuning (30k–100k rows)
 
+> Vector performance depends on planner statistics, not only index presence.
+
 **Do not deploy automatically.** Apply migration `20260315210000_vector_ivfflat_midscale_tune.sql` when ready.
+
+## FIRST RUN AFTER BACKFILL (REQUIRED)
+
+After loading ≥10k rows:
+
+1. Run:
+
+   ```sql
+   ANALYZE public.vector_embeddings;
+   ```
+
+2. Execute:
+
+   ```bash
+   psql "$DATABASE_URL" -f scripts/vector_pgvector_validate.sql
+   ```
+
+3. Confirm:
+
+   - Index Scan is used
+   - Latency and recall within targets
+
+**NOTE:** Without `ANALYZE`, Postgres may ignore the index.
+
+## IMPORTANT: INDEX USAGE VS EXISTENCE
+
+Index presence ≠ index usage.
+
+Postgres query planner decides based on table statistics.
+
+Even with a correct index:
+
+- Planner may choose Seq Scan
+- Especially after bulk inserts
+
+**Fix:** Always run `ANALYZE` after backfill.
+
+## EXPECTED BEHAVIOR BY SCALE
+
+| Rows | Expected Behavior |
+|------|-------------------|
+| 0–1k | Seq Scan likely |
+| 1k–10k | Mixed |
+| 10k–30k | Index starts activating |
+| 30k–100k | Index dominant |
+| 100k+ | Requires tuning |
+
+## FAILURE PLAYBOOK
+
+If Index Scan not used:
+
+1. Run:
+
+   ```sql
+   ANALYZE public.vector_embeddings;
+   ```
+
+2. Re-run `EXPLAIN ANALYZE`
+
+3. If still Seq Scan:
+
+   - Temporarily test:
+
+     ```sql
+     SET enable_seqscan = off;
+     ```
+
+4. If index works only when forced:
+
+   → statistics issue (not index issue)
 
 ## 1. Explain plan (sample run)
 
@@ -87,3 +159,22 @@ With **0 rows**, overlap is not meaningful—re-run after backfill.
 ## 7. RPC / schema constraints
 
 - No schema change, no RPC signature change, embedding stays **1536**.
+
+## GO / NO-GO CHECK (after backfill)
+
+System is **READY** if:
+
+- `EXPLAIN ANALYZE` shows:
+  → **Index Scan** using `vector_embeddings_embedding_idx`
+
+- Average latency (3 runs):
+  → **&lt; 50 ms**
+
+- Recall overlap (top-5):
+  → **≥ 80%**
+
+If **ANY** fail:
+
+- Run `ANALYZE public.vector_embeddings;`
+- Re-run validation script
+- **Do NOT** proceed to production until passing
