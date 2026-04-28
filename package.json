@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "start": "node dist/server.js",
     "build": "tsc",
     "test": "vitest run",
     "check:manual": "npx tsx scripts/manualCheck.ts",
